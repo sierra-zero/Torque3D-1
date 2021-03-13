@@ -2282,6 +2282,32 @@ void AssetImporter::resolveAssetItemIssues(AssetImportObject* assetItem)
    }
 }
 
+void AssetImporter::resetImportConfig()
+{
+   //use a default import config
+   if (activeImportConfig == nullptr)
+   {
+      activeImportConfig = new AssetImportConfig();
+      activeImportConfig->registerObject();
+   }
+
+   bool foundConfig = false;
+   Settings* editorSettings;
+   //See if we can get our editor settings
+   if (Sim::findObject("EditorSettings", editorSettings))
+   {
+      String defaultImportConfig = editorSettings->value("Assets/AssetImporDefaultConfig");
+
+      //If we found it, grab the import configs
+      Settings* importConfigs;
+      if (Sim::findObject("AssetImportSettings", importConfigs))
+      {
+         //Now load the editor setting-deigned config!
+         activeImportConfig->loadImportConfig(importConfigs, defaultImportConfig.c_str());
+      }
+   }
+}
+
 //
 // Importing
 //
@@ -2322,28 +2348,7 @@ StringTableEntry AssetImporter::autoImportFile(Torque::Path filePath)
    //set our path
    targetPath = filePath.getPath();
 
-   //use a default import config
-   if (activeImportConfig == nullptr)
-   {
-      activeImportConfig = new AssetImportConfig();
-      activeImportConfig->registerObject();
-   }
-
-   bool foundConfig = false;
-   Settings* editorSettings;
-   //See if we can get our editor settings
-   if (Sim::findObject("EditorSettings", editorSettings))
-   {
-      String defaultImportConfig = editorSettings->value("Assets/AssetImporDefaultConfig");
-
-      //If we found it, grab the import configs
-      Settings* importConfigs;
-      if (Sim::findObject("AssetImportSettings", importConfigs))
-      {
-         //Now load the editor setting-deigned config!
-         activeImportConfig->loadImportConfig(importConfigs, defaultImportConfig.c_str());
-      }
-   }
+   resetImportConfig();
 
    AssetImportObject* assetItem = addImportingAsset(assetType, filePath, nullptr, "");
 
@@ -2625,7 +2630,7 @@ Torque::Path AssetImporter::importMaterialAsset(AssetImportObject* assetItem)
    StringTableEntry assetName = StringTable->insert(assetItem->assetName.c_str());
 
    String tamlPath = targetPath + "/" + assetName + ".asset.taml";
-   String scriptName = assetItem->assetName + ".cs";
+   String scriptName = assetItem->assetName + "." TORQUE_SCRIPT_EXTENSION;
    String scriptPath = targetPath + "/" + scriptName;
    String originalPath = assetItem->filePath.getFullPath().c_str();
 
@@ -2712,7 +2717,7 @@ Torque::Path AssetImporter::importMaterialAsset(AssetImportObject* assetItem)
 
    //Now write the script file containing our material out
    //There's 2 ways to do this. If we're in-place importing an existing asset, we can see if the definition existed already, like in an old
-   //materials.cs file. if it does, we can just find the object by name, and save it out to our new file
+   //materials.tscript file. if it does, we can just find the object by name, and save it out to our new file
    //If not, we'll just generate one
    Material* existingMat = MATMGR->getMaterialDefinitionByName(assetName);
 
@@ -2767,7 +2772,9 @@ Torque::Path AssetImporter::importMaterialAsset(AssetImportObject* assetItem)
          assetFieldName = mapFieldName + "Asset[0]";
          mapFieldName += "[0]";
 
-         existingMat->writeField(mapFieldName.c_str(), path.c_str());
+         //If there's already an existing image map file on the material definition in this slot, don't override it
+         if(!path.isEmpty())
+            existingMat->writeField(mapFieldName.c_str(), path.c_str());
 
          String targetAsset = targetModuleId + ":" + childItem->assetName;
 
@@ -2871,10 +2878,10 @@ Torque::Path AssetImporter::importShapeAsset(AssetImportObject* assetItem)
 
    String shapeFileName = assetItem->filePath.getFileName() + "." + assetItem->filePath.getExtension();
    String assetPath = targetPath + "/" + shapeFileName;
-   String constructorPath = targetPath + "/" + assetItem->filePath.getFileName() + ".cs";
+   String constructorPath = targetPath + "/" + assetItem->filePath.getFileName() + "." TORQUE_SCRIPT_EXTENSION;
    String tamlPath = targetPath + "/" + assetName + ".asset.taml";
    String originalPath = assetItem->filePath.getFullPath().c_str();
-   String originalConstructorPath = assetItem->filePath.getPath() + "/" + assetItem->filePath.getFileName() + ".cs";
+   String originalConstructorPath = assetItem->filePath.getPath() + "/" + assetItem->filePath.getFileName() + "." TORQUE_SCRIPT_EXTENSION;
 
    char qualifiedFromFile[2048];
    char qualifiedToFile[2048];
